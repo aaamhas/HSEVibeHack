@@ -11,11 +11,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://vibehack:vibehack_pass@postgres:5432/vibehack
-      REDIS_URL: redis://redis:6379/0
       OLLAMA_BASE_URL: http://ollama:11434
     env_file: .env
     volumes:
@@ -24,26 +21,25 @@ services:
     networks:
       - vibehack-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
   vibehack-frontend:
-    image: python:3.11-slim
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
     container_name: vibehack-frontend
-    working_dir: /app
     ports:
       - "3000:3000"
-    command: python run_frontend.py
-    volumes:
-      - ./frontend:/app/frontend
-      - ./run_frontend.py:/app/run_frontend.py
+    depends_on:
+      - vibehack-api
     networks:
       - vibehack-network
-    environment:
-      PYTHONUNBUFFERED: 1
 
   postgres:
     image: postgres:15-alpine
@@ -64,22 +60,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: vibehack-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --requirepass ""
-    networks:
-      - vibehack-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   ollama:
     image: ollama/ollama:latest
     container_name: vibehack-ollama
@@ -94,8 +74,6 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local
   ollama_data:
     driver: local

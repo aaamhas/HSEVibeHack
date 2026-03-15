@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import './ChatInput.css';
 
-export default function ChatInput({ onSend }) {
+export default function ChatInput({ onSend, disabled }) {
   const [value, setValue] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (disabled) return;
     const trimmed = value.trim();
     if (!trimmed) return;
     onSend(trimmed);
@@ -18,7 +19,8 @@ export default function ChatInput({ onSend }) {
         <input
           type="text"
           className="chat-input"
-          placeholder="Введите текст"
+          placeholder={disabled ? "Поиск..." : "Введите текст"}
+          disabled={disabled}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           aria-label="Сообщение"
