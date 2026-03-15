@@ -1,0 +1,40 @@
+# Logs
+logs/
+*.log
+*.log.*
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Testing
+.pytest_cache/
+htmlcov/
+
+# Environment
+.env
+.env.local
+
+# Node (if using npm in future)
+node_modules/
+package-lock.json
