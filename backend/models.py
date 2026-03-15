@@ -48,5 +48,28 @@ class Hackathon(Base):
         secondary=hackathon_technology,
         back_populates="hackathons",
     )
+    user_hackathons = relationship("UserHackathon", back_populates="hackathon", cascade="all, delete-orphan")
 
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user_hackathons = relationship("UserHackathon", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserHackathon(Base):
+    __tablename__ = "user_hackathons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    hackathon_id = Column(Integer, ForeignKey("hackathons.id"), nullable=False)
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="user_hackathons")
+    hackathon = relationship("Hackathon", back_populates="user_hackathons")
 

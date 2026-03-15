@@ -2,12 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+import logging
 
 from backend.database import init_db
 from backend.init_technologies import init_technologies
 from backend.routers import hackathons
+from backend.config.logging_config import setup_logging, get_logger
 
 load_dotenv()
+
+# Initialize logging
+setup_logging()
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="VibeHack API",
@@ -28,8 +34,15 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     """Initialize database and technologies"""
-    init_db()
-    init_technologies()
+    try:
+        logger.info("Starting application initialization...")
+        init_db()
+        logger.info("Database initialized successfully")
+        init_technologies()
+        logger.info("Technologies initialized successfully")
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}", exc_info=True)
+        raise
 
 
 # Include routers

@@ -11,6 +11,11 @@ from backend.schemas import (
     TechnologyCreate,
 )
 from backend.ai_recommender import AIRecommender
+from backend.hackathon_service import HackathonService
+from backend.config.logging_config import get_logger
+
+logger = get_logger(__name__)
+hackathon_service = HackathonService()
 
 router = APIRouter(prefix="/hackathons", tags=["hackathons"])
 ai_recommender = AIRecommender()
@@ -39,29 +44,35 @@ async def get_hackathon(hackathon_id: int, db: Session = Depends(get_db)):
 @router.post("", response_model=HackathonResponse)
 async def create_hackathon(hackathon: HackathonCreate, db: Session = Depends(get_db)):
     """Create a new hackathon"""
-    technology_ids = hackathon.technology_ids or []
+    try:
+        technology_ids = hackathon.technology_ids or []
 
-    db_hackathon = Hackathon(
-        title=hackathon.title,
-        description=hackathon.description,
-        start_date=hackathon.start_date,
-        end_date=hackathon.end_date,
-        registration_deadline=hackathon.registration_deadline,
-        format=hackathon.format,
-        url=hackathon.url,
-        location=hackathon.location,
-        source=hackathon.source,
-    )
+        db_hackathon = Hackathon(
+            title=hackathon.title,
+            description=hackathon.description,
+            start_date=hackathon.start_date,
+            end_date=hackathon.end_date,
+            registration_deadline=hackathon.registration_deadline,
+            format=hackathon.format,
+            url=hackathon.url,
+            location=hackathon.location,
+            source=hackathon.source,
+        )
 
-    # Add technologies
-    if technology_ids:
-        technologies = db.query(Technology).filter(Technology.id.in_(technology_ids)).all()
-        db_hackathon.technologies.extend(technologies)
+        # Add technologies
+        if technology_ids:
+            technologies = db.query(Technology).filter(Technology.id.in_(technology_ids)).all()
+            db_hackathon.technologies.extend(technologies)
 
-    db.add(db_hackathon)
-    db.commit()
-    db.refresh(db_hackathon)
-    return db_hackathon
+        db.add(db_hackathon)
+        db.commit()
+        db.refresh(db_hackathon)
+        logger.info(f"Created hackathon: {db_hackathon.title} (ID: {db_hackathon.id})")
+        return db_hackathon
+    except Exception as e:
+        logger.error(f"Error creating hackathon: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error creating hackathon")
 
 
 @router.put("/{hackathon_id}", response_model=HackathonResponse)
@@ -130,34 +141,39 @@ async def search_hackathons_ai(
     db: Session = Depends(get_db),
 ):
     """Search hackathons using AI-powered semantic search with Qwen2"""
-    now = datetime.utcnow()
-    all_hackathons = (
-        db.query(Hackathon)
-        .filter(Hackathon.registration_deadline > now)
-        .all()
-    )
+    try:
+        logger.info(f"AI search initiated with query: '{q}'")
+        now = datetime.utcnow()
+        all_hackathons = (
+            db.query(Hackathon)
+            .filter(Hackathon.registration_deadline > now)
+            .all()
+        )
 
-    hackathons_dict = [
-        {
-            "id": h.id,
-            "title": h.title,
-            "description": h.description or "",
-            "start_date": h.start_date,
-            "end_date": h.end_date,
-            "registration_deadline": h.registration_deadline,
-            "format": h.format,
-            "url": h.url,
-            "location": h.location,
-            "source": h.source,
-            "technologies": [t.name for t in h.technologies],
-            "created_at": h.created_at,
-        }
-        for h in all_hackathons
-    ]
+        hackathons_dict = [
+            {
+                "id": h.id,
+                "title": h.title,
+                "description": h.description or "",
+                "start_date": h.start_date,
+                "end_date": h.end_date,
+                "registration_deadline": h.registration_deadline,
+                "format": h.format,
+                "url": h.url,
+                "location": h.location,
+                "source": h.source,
+                "technologies": [t.name for t in h.technologies],
+                "created_at": h.created_at,
+            }
+            for h in all_hackathons
+        ]
 
-    ranked_hackathons = ai_recommender.rank_hackathons(q, hackathons_dict, limit)
-
-    return [HackathonResponse(**h) for h in ranked_hackathons]
+        ranked_hackathons = ai_recommender.rank_hackathons(q, hackathons_dict, limit)
+        logger.info(f"AI search returned {len(ranked_hackathons)} results for query: '{q}'")
+        return [HackathonResponse(**h) for h in ranked_hackathons]
+    except Exception as e:
+        logger.error(f"Error in AI search for query '{q}': {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error performing AI search")
 
 
 # Technologies endpoints
@@ -195,3 +211,31 @@ async def delete_technology(tech_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Technology deleted"}
 
+
+# Parser endpoints
+@router.post("/parse/update")
+async def run_parser_update(db: Session = Depends(get_db)):
+    """
+    Trigger hackathon parsing from all sources.
+    This endpoint runs all configured parsers and adds new hackathons to the database.
+    """
+    try:
+        logger.info("Parser update triggered via API")
+        summary = await hackathon_service.run_all_parsers(db)
+        logger.info(f"Parser update completed: {summary}")
+        return summary
+    except Exception as e:
+        logger.error(f"Error during parser update: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error running parsers")
+
+
+@router.get("/parse/sources")
+async def get_parser_sources():
+    """Get list of available parser sources"""
+    try:
+        sources = hackathon_service.get_parser_sources()
+        logger.info(f"Parser sources requested: {sources}")
+        return {"sources": sources}
+    except Exception as e:
+        logger.error(f"Error getting parser sources: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error getting parser sources")

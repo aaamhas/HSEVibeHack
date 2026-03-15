@@ -4,9 +4,11 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from dotenv import load_dotenv
 import ollama
+from backend.config.logging_config import get_logger
 
 load_dotenv()
 
+logger = get_logger(__name__)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
@@ -24,7 +26,7 @@ class AIRecommender:
             embedding = self.embedding_model.encode(text)
             return embedding.tolist()
         except Exception as e:
-            print(f"Error generating embedding: {e}")
+            logger.error(f"Error generating embedding: {e}", exc_info=True)
             return []
 
     def calculate_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
@@ -95,7 +97,7 @@ class AIRecommender:
 
             return response.get("response", "").strip()
         except Exception as e:
-            print(f"Error generating suggestion with Qwen2: {e}")
+            logger.error(f"Error generating suggestion with Qwen2: {e}", exc_info=True)
             return ""
 
     def extract_hackathon_features(self, description: str) -> Dict:
@@ -115,7 +117,7 @@ Response:"""
 
             return {"features": response.get("response", "").strip()}
         except Exception as e:
-            print(f"Error extracting features: {e}")
+            logger.error(f"Error extracting features: {e}", exc_info=True)
             return {"features": ""}
 
     def get_recommended_hackathon_ids(self) -> List[int]:
