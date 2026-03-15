@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  vibehack-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vibehack-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://vibehack:vibehack_pass@postgres:5432/vibehack
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+    env_file: .env
+    volumes:
+      - .:/app
+    command: uvicorn backend.main:app --host 0.0.0.0 --reload
+    networks:
+      - vibehack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: vibehack-postgres
+    environment:
+      POSTGRES_USER: vibehack
+      POSTGRES_PASSWORD: vibehack_pass
+      POSTGRES_DB: vibehack
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - vibehack-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibehack -d vibehack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: vibehack-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ""
+    networks:
+      - vibehack-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vibehack-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    networks:
+      - vibehack-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  vibehack-network:
+    driver: bridge
