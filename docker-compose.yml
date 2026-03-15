@@ -30,6 +30,21 @@ services:
       retries: 3
       start_period: 40s
 
+  vibehack-frontend:
+    image: python:3.11-slim
+    container_name: vibehack-frontend
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    command: python run_frontend.py
+    volumes:
+      - ./frontend:/app/frontend
+      - ./run_frontend.py:/app/run_frontend.py
+    networks:
+      - vibehack-network
+    environment:
+      PYTHONUNBUFFERED: 1
+
   postgres:
     image: postgres:15-alpine
     container_name: vibehack-postgres
